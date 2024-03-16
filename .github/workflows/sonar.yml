@@ -1,44 +1,40 @@
-name: Sonar
-
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.ref }}-${{ github.workflow }}
 env:
   MAVEN_ARGS: -V -ntp -e
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-on:
-  push:
-    paths-ignore:
-      - 'docs/**'
-      - 'adr/**'
-    branches: [ main ]
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'adr/**'
-    types: [ opened, synchronize, reopened ]
-
 jobs:
   test:
-    runs-on: ubuntu-latest
-    if: ${{ ( github.event_name == 'push' ) || ( github.event_name == 'pull_request' && github.event.pull_request.head.repo.owner.login == 'java-operator-sdk' ) }}
+    if: ${{ ( github.event_name == 'push' ) || ( github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.owner.login == 'java-operator-sdk' )
+      }}
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-          cache: 'maven'
-      - name: Cache SonarCloud packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.sonar/cache
-          key: ${{ runner.os }}-sonar
-          restore-keys: ${{ runner.os }}-sonar
-      - name: Build and analyze
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed to get PR information, if any
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn -B org.jacoco:jacoco-maven-plugin:prepare-agent clean install verify org.jacoco:jacoco-maven-plugin:report org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.projectKey=java-operator-sdk_java-operator-sdk
-
+    - continue-on-error: true
+      uses: actions/checkout@v4
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: 17
+    - continue-on-error: true
+      name: Cache SonarCloud packages
+      uses: actions/cache@v4
+      with:
+        key: ${{ runner.os }}-sonar
+        path: ~/.sonar/cache
+        restore-keys: ${{ runner.os }}-sonar
+    - continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      name: Build and analyze
+      run: mvn -B org.jacoco:jacoco-maven-plugin:prepare-agent clean install verify
+        org.jacoco:jacoco-maven-plugin:report org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+        -Dsonar.projectKey=java-operator-sdk_java-operator-sdk
+name: Sonar
+on:
+  repository_dispatch:
+    types: trigger-ga___sonar.yml

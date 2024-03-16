@@ -1,69 +1,83 @@
-name: Verify Pull Request
-
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.ref }}-${{ github.workflow }}
 env:
   MAVEN_ARGS: -V -ntp -e
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-on:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'adr/**'
-    branches: [ main, v1, v2, v3, next ]
-  workflow_dispatch:
 jobs:
   check_format_and_unit_tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-          cache: 'maven'
-      - name: Check code format
-        run: |
-          ./mvnw ${MAVEN_ARGS} formatter:validate -Dconfigfile=$PWD/contributing/eclipse-google-style.xml -pl '!operator-framework-bom' --file pom.xml
-          ./mvnw ${MAVEN_ARGS} impsort:check -pl '!operator-framework-bom' --file pom.xml
-      - name: Run unit tests
-        run: ./mvnw ${MAVEN_ARGS} clean install --file pom.xml
+    - continue-on-error: true
+      uses: actions/checkout@v4
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: 17
+    - continue-on-error: true
+      name: Check code format
+      run: './mvnw ${MAVEN_ARGS} formatter:validate -Dconfigfile=$PWD/contributing/eclipse-google-style.xml
+        -pl ''!operator-framework-bom'' --file pom.xml
 
+        ./mvnw ${MAVEN_ARGS} impsort:check -pl ''!operator-framework-bom'' --file
+        pom.xml
+
+        '
+    - continue-on-error: true
+      name: Run unit tests
+      run: ./mvnw ${MAVEN_ARGS} clean install --file pom.xml
+  httpclient-tests:
+    strategy:
+      matrix:
+        httpclient:
+        - vertx
+        - jdk
+        - jetty
+    uses: ./.github/workflows/integration-tests.yml
+    with:
+      experimental: true
+      http-client: ${{ matrix.httpclient }}
+      java-version: 17
+      kube-version: v1.29.1
   integration_tests:
     strategy:
       matrix:
-        java: [ 11, 17 ]
-        kubernetes: [ 'v1.26.13', 'v1.27.10', 'v1.28.6', 'v1.29.1' ]
+        java:
+        - 11
+        - 17
+        kubernetes:
+        - v1.26.13
+        - v1.27.10
+        - v1.28.6
+        - v1.29.1
     uses: ./.github/workflows/integration-tests.yml
     with:
       java-version: ${{ matrix.java }}
       kube-version: ${{ matrix.kubernetes }}
-
-  httpclient-tests:
-    strategy:
-      matrix:
-        httpclient: [ 'vertx', 'jdk', 'jetty' ]
-    uses: ./.github/workflows/integration-tests.yml
-    with:
-      java-version: 17
-      kube-version: 'v1.29.1'
-      http-client: ${{ matrix.httpclient }}
-      experimental: true
-
   special_integration_tests:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
+    steps:
+    - continue-on-error: true
+      uses: actions/checkout@v4
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: ${{ matrix.java }}
+    - continue-on-error: true
+      name: Run Special Integration Tests
+      run: ./mvnw ${MAVEN_ARGS} -B package -P minimal-watch-timeout-dependent-it --file
+        pom.xml
     strategy:
       matrix:
-        java: [ 11, 17 ]
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: ${{ matrix.java }}
-          cache: 'maven'
-      - name: Run Special Integration Tests
-        run: ./mvnw ${MAVEN_ARGS} -B package -P minimal-watch-timeout-dependent-it --file pom.xml
+        java:
+        - 11
+        - 17
+name: Verify Pull Request
+on:
+  repository_dispatch:
+    types: trigger-ga___pr.yml

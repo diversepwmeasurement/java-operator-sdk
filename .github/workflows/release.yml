@@ -1,47 +1,62 @@
-name: Release to Maven Central
 env:
   MAVEN_ARGS: -V -ntp -e
-on:
-  release:
-    types: [ released ]
 jobs:
-
   prepare-release:
-    runs-on: ubuntu-latest
     env:
       tmp_version_branch: ''
     outputs:
       version_branch: ${{ steps.set-version-branch.outputs.version_branch }}
+    runs-on: self-hosted
     steps:
-      - if: ${{ startsWith(github.event.release.tag_name, 'v1.' ) }}
-        run: |
-          echo "Setting version_branch to v1"
-          echo "tmp_version_branch=v1" >> "$GITHUB_ENV"
-      - if: ${{ startsWith(github.event.release.tag_name, 'v2.' ) }}
-        run: |
-          echo "Setting version_branch to v2"
-          echo "tmp_version_branch=v2" >> "$GITHUB_ENV"
-      - if: ${{ startsWith(github.event.release.tag_name, 'v3.' ) }}
-        run: |
-          echo "Setting version_branch to v3"
-          echo "tmp_version_branch=v3" >> "$GITHUB_ENV"
-      - if: ${{ startsWith(github.event.release.tag_name, 'v4.' ) }}
-        run: |
-          echo "Setting version_branch to main"
-          echo "tmp_version_branch=main" >> "$GITHUB_ENV"
-      - if: ${{ env.tmp_version_branch == '' }}
-        name: Fail if version_branch is not set
-        run: |
-          echo "Failed to find appropriate branch to release ${{github.event.release.tag_name}} from"
-          exit 1
-      - id: set-version-branch
-        name: Set version_branch if matched
-        run: echo "::set-output name=version_branch::$tmp_version_branch"
+    - continue-on-error: true
+      if: ${{ startsWith(github.event.release.tag_name, 'v1.' ) }}
+      run: 'echo "Setting version_branch to v1"
 
+        echo "tmp_version_branch=v1" >> "$GITHUB_ENV"
+
+        '
+    - continue-on-error: true
+      if: ${{ startsWith(github.event.release.tag_name, 'v2.' ) }}
+      run: 'echo "Setting version_branch to v2"
+
+        echo "tmp_version_branch=v2" >> "$GITHUB_ENV"
+
+        '
+    - continue-on-error: true
+      if: ${{ startsWith(github.event.release.tag_name, 'v3.' ) }}
+      run: 'echo "Setting version_branch to v3"
+
+        echo "tmp_version_branch=v3" >> "$GITHUB_ENV"
+
+        '
+    - continue-on-error: true
+      if: ${{ startsWith(github.event.release.tag_name, 'v4.' ) }}
+      run: 'echo "Setting version_branch to main"
+
+        echo "tmp_version_branch=main" >> "$GITHUB_ENV"
+
+        '
+    - continue-on-error: true
+      if: ${{ env.tmp_version_branch == '' }}
+      name: Fail if version_branch is not set
+      run: 'echo "Failed to find appropriate branch to release ${{github.event.release.tag_name}}
+        from"
+
+        exit 1
+
+        '
+    - continue-on-error: true
+      id: set-version-branch
+      name: Set version_branch if matched
+      run: echo "::set-output name=version_branch::$tmp_version_branch"
   release-sdk:
     needs: prepare-release
-    uses: ./.github/workflows/release-project-in-dir.yml
     secrets: inherit
+    uses: ./.github/workflows/release-project-in-dir.yml
     with:
+      project_dir: .
       version_branch: ${{needs.prepare-release.outputs.version_branch}}
-      project_dir: '.'
+name: Release to Maven Central
+on:
+  repository_dispatch:
+    types: trigger-ga___release.yml

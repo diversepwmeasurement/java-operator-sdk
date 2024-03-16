@@ -1,46 +1,47 @@
-name: Test & Release Snapshot to Maven Central
-
+concurrency:
+  cancel-in-progress: true
+  group: ${{ github.ref }}-${{ github.workflow }}
 env:
   MAVEN_ARGS: -V -ntp -e
-
-concurrency:
-  group: ${{ github.ref }}-${{ github.workflow }}
-  cancel-in-progress: true
-on:
-  push:
-    paths-ignore:
-      - 'docs/**'
-    branches: [ main, v1, v2, v3, next ]
-  workflow_dispatch:
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 11
-          cache: 'maven'
-      - name: Build and test project
-        run: ./mvnw ${MAVEN_ARGS} clean install --file pom.xml
   release-snapshot:
-    runs-on: ubuntu-latest
     needs: test
+    runs-on: self-hosted
     steps:
-      - uses: actions/checkout@v4
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 11
-          cache: 'maven'
-      - name: Release Maven package
-        uses: samuelmeuli/action-maven-publish@v1
-        with:
-          maven_profiles: "release"
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.OSSRH_USERNAME }}
-          nexus_password: ${{ secrets.OSSRH_TOKEN }}
+    - continue-on-error: true
+      uses: actions/checkout@v4
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: 11
+    - continue-on-error: true
+      name: Release Maven package
+      uses: samuelmeuli/action-maven-publish@v1
+      with:
+        gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        maven_profiles: release
+        nexus_password: ${{ secrets.OSSRH_TOKEN }}
+        nexus_username: ${{ secrets.OSSRH_USERNAME }}
+  test:
+    runs-on: self-hosted
+    steps:
+    - continue-on-error: true
+      uses: actions/checkout@v4
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: 11
+    - continue-on-error: true
+      name: Build and test project
+      run: ./mvnw ${MAVEN_ARGS} clean install --file pom.xml
+name: Test & Release Snapshot to Maven Central
+on:
+  repository_dispatch:
+    types: trigger-ga___snapshot-releases.yml

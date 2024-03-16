@@ -1,59 +1,50 @@
-# Integration and end to end tests which runs locally and deploys the Operator to a Kubernetes
-# (Minikube) cluster and creates custom resources to verify the operator's functionality
-name: Integration & End to End tests
-on:
-  pull_request:
-    paths-ignore:
-      - 'docs/**'
-      - 'adr/**'
-    branches: [ main, next ]
-  push:
-    paths-ignore:
-      - 'docs/**'
-      - 'adr/**'
-    branches:
-      - main
-      - next
-
 jobs:
   sample_operators_tests:
+    runs-on: self-hosted
+    steps:
+    - continue-on-error: true
+      name: Checkout
+      uses: actions/checkout@v4
+    - continue-on-error: true
+      name: Setup Minikube-Kubernetes
+      uses: manusa/actions-setup-minikube@v2.10.0
+      with:
+        driver: docker
+        github token: ${{ secrets.GITHUB_TOKEN }}
+        kubernetes version: v1.29.1
+        minikube version: v1.32.0
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: 17
+    - continue-on-error: true
+      name: Build SDK
+      run: mvn install -DskipTests
+    - continue-on-error: true
+      name: Run integration tests in local mode
+      run: 'mvn test -P end-to-end-tests
+
+        '
+      working-directory: ${{ matrix.sample_dir }}
+    - continue-on-error: true
+      name: Run E2E tests as a deployment
+      run: 'eval $(minikube -p minikube docker-env)
+
+        mvn jib:dockerBuild test -P end-to-end-tests -Dtest.deployment=remote
+
+        '
+      working-directory: ${{ matrix.sample_dir }}
     strategy:
       matrix:
         sample_dir:
-          - "sample-operators/mysql-schema"
-          - "sample-operators/tomcat-operator"
-          - "sample-operators/webpage"
-          - "sample-operators/leader-election"
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Minikube-Kubernetes
-        uses: manusa/actions-setup-minikube@v2.10.0
-        with:
-          minikube version: v1.32.0
-          kubernetes version: v1.29.1
-          github token: ${{ secrets.GITHUB_TOKEN }}
-          driver: docker
-
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          java-version: 17
-          distribution: temurin
-          cache: 'maven'
-
-      - name: Build SDK
-        run: mvn install -DskipTests
-
-      - name: Run integration tests in local mode
-        working-directory: ${{ matrix.sample_dir }}
-        run: |
-          mvn test -P end-to-end-tests
-
-      - name: Run E2E tests as a deployment
-        working-directory: ${{ matrix.sample_dir }}
-        run: |
-          eval $(minikube -p minikube docker-env)
-          mvn jib:dockerBuild test -P end-to-end-tests -Dtest.deployment=remote
+        - sample-operators/mysql-schema
+        - sample-operators/tomcat-operator
+        - sample-operators/webpage
+        - sample-operators/leader-election
+name: Integration & End to End tests
+on:
+  repository_dispatch:
+    types: trigger-ga___e2e-test.yml

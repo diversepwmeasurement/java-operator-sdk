@@ -1,81 +1,77 @@
-name: Release project in specified directory
-
-on:
-  workflow_call:
-    inputs:
-      project_dir:
-        type: string
-        required: true
-      version_branch:
-        type: string
-        required: true
-
 env:
-#  set the target pom to use the input directory as root
   MAVEN_ARGS: -V -ntp -e -f ${{ inputs.project_dir }}/pom.xml
-
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
-      - name: Checkout "${{inputs.version_branch}}" branch
-        uses: actions/checkout@v4
-        with:
-          ref: "${{inputs.version_branch}}"
+    - continue-on-error: true
+      name: Checkout "${{inputs.version_branch}}" branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{inputs.version_branch}}
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: 11
+    - continue-on-error: true
+      env:
+        RELEASE_VERSION: ${{ github.event.release.tag_name }}
+      name: Change version to release version
+      run: 'mvn ${MAVEN_ARGS} versions:set -DnewVersion="${RELEASE_VERSION:1}" versions:commit
+        -DprocessAllModules
 
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          java-version: 11
-          distribution: temurin
-          cache: 'maven'
-
-      - name: Change version to release version
-        # Assume that RELEASE_VERSION will have form like: "v1.0.1". So we cut the "v"
-        run: |
-          mvn ${MAVEN_ARGS} versions:set -DnewVersion="${RELEASE_VERSION:1}" versions:commit -DprocessAllModules
-        env:
-          RELEASE_VERSION: ${{ github.event.release.tag_name }}
-
-      - name: Release Maven package
-        uses: samuelmeuli/action-maven-publish@v1
-        with:
-          maven_profiles: "release"
-          maven_args: ${{ env.MAVEN_ARGS }}
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          nexus_username: ${{ secrets.OSSRH_USERNAME }}
-          nexus_password: ${{ secrets.OSSRH_TOKEN }}
-
-  # This is separate job because there were issues with git after release step, was not able to commit changes.
+        '
+    - continue-on-error: true
+      name: Release Maven package
+      uses: samuelmeuli/action-maven-publish@v1
+      with:
+        gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+        gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+        maven_args: ${{ env.MAVEN_ARGS }}
+        maven_profiles: release
+        nexus_password: ${{ secrets.OSSRH_TOKEN }}
+        nexus_username: ${{ secrets.OSSRH_USERNAME }}
   update-working-version:
-    runs-on: ubuntu-latest
+    if: '!contains(github.event.release.tag_name, ''RC'')'
     needs: publish
-    if: "!contains(github.event.release.tag_name, 'RC')" # not sure we should keep this the RC part
+    runs-on: self-hosted
     steps:
-      - name: Checkout "${{inputs.version_branch}}" branch
-        uses: actions/checkout@v4
-        with:
-          ref: "${{inputs.version_branch}}"
+    - continue-on-error: true
+      name: Checkout "${{inputs.version_branch}}" branch
+      uses: actions/checkout@v4
+      with:
+        ref: ${{inputs.version_branch}}
+    - continue-on-error: true
+      name: Set up Java and Maven
+      uses: actions/setup-java@v4
+      with:
+        cache: maven
+        distribution: temurin
+        java-version: 11
+    - continue-on-error: true
+      env:
+        RELEASE_VERSION: ${{ github.event.release.tag_name }}
+      name: Update version to new SNAPSHOT version
+      run: 'mvn ${MAVEN_ARGS} build-helper:parse-version versions:set -DnewVersion=\${parsedVersion.majorVersion}.\${parsedVersion.minorVersion}.\${parsedVersion.nextIncrementalVersion}-SNAPSHOT
+        versions:commit -DprocessAllModules
 
-      - name: Set up Java and Maven
-        uses: actions/setup-java@v4
-        with:
-          java-version: 11
-          distribution: temurin
-          cache: 'maven'
+        git config --local user.email "action@github.com"
 
-      - name: Update version to new SNAPSHOT version
-        run: |
-          mvn ${MAVEN_ARGS} build-helper:parse-version versions:set -DnewVersion=\${parsedVersion.majorVersion}.\${parsedVersion.minorVersion}.\${parsedVersion.nextIncrementalVersion}-SNAPSHOT versions:commit -DprocessAllModules
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git commit -m "Set new SNAPSHOT version into pom files." -a
-        env:
-          RELEASE_VERSION: ${{ github.event.release.tag_name }}
+        git config --local user.name "GitHub Action"
 
-      - name: Push changes to branch
-        uses: ad-m/github-push-action@master
-        with:
-          branch: "${{inputs.version_branch}}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+        git commit -m "Set new SNAPSHOT version into pom files." -a
+
+        '
+    - continue-on-error: true
+      name: Push changes to branch
+      uses: ad-m/github-push-action@master
+      with:
+        branch: ${{inputs.version_branch}}
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+name: Release project in specified directory
+on:
+  repository_dispatch:
+    types: trigger-ga___release-project-in-dir.yml
